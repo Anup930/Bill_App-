@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Bill Scanner + Gemini AI + Google Sheets</title>
+    <style>
+        /* ===== Reset & Base ===== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #f4f7fb 0%, #e8ecf4 100%);
+            color: #333;
+            padding: 2rem;
+            line-height: 1.6;
+        }
+
+        /* ===== Container ===== */
+        .container {
+            max-width: 850px;
+            margin: auto;
+            background: #fff;
+            padding: 2.5rem;
+            border-radius: 16px;
+            box-shadow: 0 10px 35px rgba(0,0,0,0.08);
+            animation: fadeIn 0.5s ease;
+            position: relative; /* Added for positioning the new buttons */
+        }
+        
+        /* --- START: NEW CSS FOR APPROVAL BUTTONS --- */
+        .approval-buttons-container {
+            position: absolute;
+            top: 20px;
+            right: 25px;
+            display: flex;
+            gap: 10px;
+        }
+        .approval-buttons-container button {
+            background: linear-gradient(90deg, #6c757d, #5a6268);
+            color: white;
+            padding: 8px 14px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            width: auto; /* Override full width */
+            margin-top: 0;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .approval-buttons-container button:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+        /* --- END: NEW CSS --- */
+
+
+        /* ===== Headings ===== */
+        h1 {
+            color: #1a73e8;
+            text-align: center;
+            margin-bottom: 1.5rem;
+            font-weight: 700;
+        }
+        h3 {
+            margin-bottom: 0.75rem;
+            color: #333;
+            font-weight: 600;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+        }
+
+        /* ===== Inputs & Textareas ===== */
+        textarea, input[type="text"], select {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #d1d9e6;
+            border-radius: 8px;
+            box-sizing: border-box;
+            margin-top: 6px;
+            background-color: #fafbfc;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+            font-size: 15px;
+        }
+        textarea:focus, input:focus, select:focus {
+            border-color: #1a73e8;
+            box-shadow: 0 0 0 3px rgba(26,115,232,0.1);
+            outline: none;
+        }
+        label {
+            font-weight: 600;
+            font-size: 14px;
+            color: #444;
+        }
+        .manual-fields .field-group {
+            margin-bottom: 1rem;
+        }
+
+        /* ===== Buttons ===== */
+        button {
+            background: linear-gradient(90deg, #1a73e8, #0f5bb5);
+            color: white;
+            padding: 14px 18px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            margin-top: 10px;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        button:disabled { background: #c5c8cc; cursor: not-allowed; }
+        button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(26,115,232,0.3); }
+
+        .auth-buttons button {
+            background: linear-gradient(90deg, #34a853, #2a7b3b);
+            width: calc(50% - 6px);
+            display: inline-block;
+        }
+        .auth-buttons button:hover:not(:disabled) { box-shadow: 0 4px 12px rgba(52,168,83,0.3); }
+        .auth-buttons { display: flex; gap: 12px; }
+
+        /* ===== Status Alerts ===== */
+        .error, .success, .info {
+            padding: 12px 14px;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 14px;
+        }
+        .error { background: #fdecea; color: #d93025; border: 1px solid #f5c2c0; }
+        .success { background: #e6f4ea; color: #137333; border: 1px solid #b7dfb9; }
+        .info { background: #e8f0fe; color: #0b5394; border: 1px solid #c2dbff; }
+
+        /* ===== Loader ===== */
+        #loader { display: none; text-align: center; margin: 20px 0; }
+        .spinner {
+            border: 4px solid #e6e6e6;
+            border-top: 4px solid #1a73e8;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ===== Animation ===== */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px);} to { opacity: 1; transform: translateY(0);} }
+    </style>
+
+    <!-- External Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.4.120/build/pdf.min.js"></script>
+    <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <!-- Google API Libraries -->
+    <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+    <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+</head>
+<body>
+
+    <div class="container">
+        <!-- --- START: NEW APPROVAL BUTTONS --- -->
+        <div class="approval-buttons-container">
+            <button id="hod-approval-btn">HOD Approval</button>
+            <button id="final-approval-btn">Final Approval</button>
+        </div>
+        <!-- --- END: NEW APPROVAL BUTTONS --- -->
+
+        <h1>📄 PDF Bill Scanner + Gemini AI ➡️ Google Sheets</h1>
+        
+        <div class="file-uploader">
+            <label for="pdf-upload"><b>1. Upload your PDF bill</b></label>
+            <input type="file" id="pdf-upload" accept=".pdf" style="margin-top: 8px;">
+        </div>
+        
+        <div id="status-area"></div>
+        
+        <div id="extracted-text-section" style="display:none; margin-top: 1rem;">
+            <h3>📜 Extracted Text</h3>
+            <textarea id="extracted-text-output" rows="10" readonly></textarea>
+        </div>
+        
+        <div class="manual-fields" style="margin-top: 1.5rem;">
+            <h3>📝 2. Additional Bill Details (Manual Entry)</h3>
+            <div class="field-group">
+                <label for="bill-source">Bill Source</label>
+                <select id="bill-source">
+                    <option value="Whatsapp">Whatsapp</option>
+                    <option value="Mail">Mail</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+            <div class="field-group">
+                <label for="bill-given-by">Bill Given By</label>
+                <input type="text" id="bill-given-by" placeholder="e.g., John Doe">
+            </div>
+            <div class="field-group">
+                <label for="added-by">Added By</label>
+                <input type="text" id="added-by" placeholder="e.g., Your Name">
+            </div>
+            <div class="field-group">
+                <label for="hod-approval">HOD for Approval</label>
+                <select id="hod-approval">
+                    <option value="Hod1">Hod1</option>
+                    <option value="Hod2">Hod2</option>
+                    <option value="Hod3">Hod3</option>
+                </select>
+            </div>
+            <div class="field-group">
+                <label for="final-approval">Final Approval</label>
+                <select id="final-approval">
+                    <option value="Final1">Final1</option>
+                    <option value="Final2">Final2</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="gemini-section" style="margin-top: 1.5rem;">
+            <h3>🤖 3. Process with AI</h3>
+            <div class="auth-buttons">
+                <button id="authorize_button" style="visibility: hidden;">Authorize Google Sheets</button>
+                <button id="signout_button" style="visibility: hidden;">Sign Out</button>
+            </div>
+            <button id="get-data-btn" disabled>Get Data from Bill</button> 
+            <button id="process-new-btn" style="display:none;background:linear-gradient(90deg,#f59e0b,#d97706);">Process New Bill</button>
+        </div>
+
+        <div id="loader">
+            <div class="spinner"></div>
+            <p>Processing... Please wait.</p>
+        </div>
+        
+        <div id="results" style="margin-top: 1.5rem;"></div> 
+        <div id="download-section" style="margin-top: 20px;"></div>
+    </div>
+
+    <!-- The 'defer' attribute ensures the script runs after the HTML body is parsed -->
+    <script src="script.js" defer></script>
+
+</body>
+</html>

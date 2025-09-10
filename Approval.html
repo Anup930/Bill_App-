@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bill Approval System</title>
+    <style>
+        /* Base Styles */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f4f7f9;
+            color: #333;
+            margin: 0;
+            padding: 2rem;
+        }
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            background: #fff;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.07);
+        }
+        h1, h2 {
+            color: #1a73e8;
+            text-align: center;
+            border-bottom: 1px solid #eef;
+            padding-bottom: 1rem;
+            margin-top: 0;
+        }
+
+        /* Buttons */
+        button {
+            background: linear-gradient(90deg, #1a73e8, #0f5bb5);
+            color: white;
+            padding: 12px 18px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.2s ease;
+            font-weight: 600;
+        }
+        button:disabled { background: #c5c8cc; cursor: not-allowed; opacity: 0.7; }
+        button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(26,115,232,0.3); }
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-start; 
+            align-items: center;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+        .button-group .secondary {
+            background: linear-gradient(90deg, #6c757d, #5a6268);
+        }
+        .button-group .secondary:hover:not(:disabled) { box-shadow: 0 4px 12px rgba(108,117,125,0.3); }
+
+        #send-approval-container {
+            margin-left: auto; /* Pushes the button to the far right */
+        }
+
+        /* Loader */
+        #loader {
+            display: none; text-align: center; margin: 20px 0;
+        }
+        .spinner {
+            border: 4px solid #e6e6e6; border-top: 4px solid #1a73e8;
+            border-radius: 50%; width: 40px; height: 40px;
+            animation: spin 1s linear infinite; margin: 0 auto 10px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        /* Views */
+        .view { display: none; }
+        #auth-view { text-align: center; }
+
+        /* Header Selection View */
+        #header-selection-view h2 { text-align: left; }
+        #header-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        }
+        .header-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            background: #fff;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+        }
+        .header-item input { margin-right: 10px; width: 18px; height: 18px;}
+        .header-item label { font-weight: 500; }
+        #show-data-btn-container { text-align: right; }
+
+        /* Data Approval View */
+        #data-table-container { overflow-x: auto; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #1a73e8;
+            color: white;
+            font-weight: 600;
+        }
+        th:first-child, td:first-child {
+            text-align: center;
+        }
+        tr:nth-child(even) { background-color: #f8f9fa; }
+        tr:hover { background-color: #e9ecef; }
+        #no-data-message {
+            text-align: center;
+            padding: 2rem;
+            font-size: 1.2rem;
+            color: #777;
+        }
+    </style>
+    
+    <script src="Aoorovalscript.js" defer></script>
+    <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+    <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Bill Approval Dashboard</h1>
+        <div id="auth-view" class="view" style="display: block;">
+            <p>Please authorize the application to access your Google Sheet.</p>
+            <button id="authorize_button" disabled>Loading Libraries...</button>
+        </div>
+        <div id="header-selection-view" class="view">
+            <h2>1. Select Columns to Display</h2>
+            <div id="header-list"></div>
+            <div id="show-data-btn-container"><button id="show-data-btn">Next &rarr;</button></div>
+        </div>
+        <div id="data-approval-view" class="view">
+            <div class="button-group">
+                <button id="back-to-headers-btn" class="secondary">&larr; Change Columns</button>
+                <button id="home-btn">Home</button>
+                <button id="hod-pending-btn">HOD Approval Queue</button>
+                <button id="final-pending-btn">Final Approval Queue</button>
+                <div id="send-approval-container">
+                    <button id="send-hod-approval-btn" style="display: none;">Send for HOD Approval</button>
+                    <button id="send-final-approval-btn" style="display: none;">Send for Final Approval</button>
+                </div>
+            </div>
+            <hr>
+            <div id="data-table-container"></div>
+            <div id="no-data-message" style="display:none;"><p>No pending items found.</p></div>
+        </div>
+        <div id="loader"><div class="spinner"></div><p>Processing... Please wait.</p></div>
+    </div>
+</body>
+</html>
