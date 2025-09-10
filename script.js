@@ -123,6 +123,7 @@ const DEFAULT_PROMPT = `Kindly Read carefuly and tell me the following details i
 Note: 
 A. always Give CGSTAmount, SGSTAmount, IGSTAmount, Don't Inclode in Once
 B. Always Keep Col name Vendor, always keep Col name Company, always keep col name CapitalOrRevenueExpense
+C. Add a Col Part Payment and in val add 0 Every Time
 Return ONLY valid JSON without any extra text, explanation, or markdown formatting.`;
 
 pdfUpload.addEventListener('change', async (event) => {
@@ -468,4 +469,5 @@ processNewBtn.addEventListener('click', fullReset);
 // --- START: NEW EVENT LISTENERS ---
 hodApprovalBtn.addEventListener('click', openHodApprovalTab);
 finalApprovalBtn.addEventListener('click', openFinalApprovalTab);
+
 // --- END: NEW EVENT LISTENERS ---
