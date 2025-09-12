@@ -126,6 +126,7 @@ B. Always Keep Col name Vendor, always keep Col name Company, always keep col na
 C. Add a Col Part Payment and in val add 0 Every Time,
 D. Memo No, Doc No both are same as invoice No, always Keep In InvoiceNumber
 E.Also We need to show Few Col (CapitalOrRevenueExpense,ExpenseName, AssetGroup, TDSApplicable,TDSRate, TDSAmount, TDSSection, RCMApplicable, GSTInputIncluded, GSTCorrect, CGSTAmount, SGSTAmount, IGSTAmount, FinalAmountPayable, PartPayment, Remarks)
+F. Add 2 Column (Accountant Approval, CFO Approval) always add val Pending
 Return ONLY valid JSON without any extra text, explanation, or markdown formatting.`;
 
 pdfUpload.addEventListener('change', async (event) => {
@@ -473,6 +474,7 @@ hodApprovalBtn.addEventListener('click', openHodApprovalTab);
 finalApprovalBtn.addEventListener('click', openFinalApprovalTab);
 
 // --- END: NEW EVENT LISTENERS ---
+
 
 
 
