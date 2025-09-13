@@ -15,6 +15,7 @@ let pdfFile = null;
 let pdfBlobUrl = null;
 let verificationPopup = null;
 let billData = [];
+let sheetHeaders = [];
 
 // Comment: Get references to DOM elements
 const pdfUpload = document.getElementById('pdf-upload');
@@ -28,12 +29,6 @@ const downloadSection = document.getElementById('download-section');
 const authorizeBtn = document.getElementById('authorize_button');
 const signoutBtn = document.getElementById('signout_button');
 const processNewBtn = document.getElementById('process-new-btn');
-
-// --- START: NEW DOM ELEMENT REFERENCES ---
-const hodApprovalBtn = document.getElementById('hod-approval-btn');
-const finalApprovalBtn = document.getElementById('final-approval-btn');
-// --- END: NEW DOM ELEMENT REFERENCES ---
-
 
 // --- GOOGLE API INITIALIZATION ---
 function gapiLoaded() {
@@ -133,15 +128,12 @@ pdfUpload.addEventListener('change', async (event) => {
     const file = event.target.files[0];
     if (!file) return;
     
-    // First, reset the UI from any previous bill
     resetUIForNewBill();
 
-    // Now, set the new file
     pdfFile = file;
     if (pdfBlobUrl) { URL.revokeObjectURL(pdfBlobUrl); }
     pdfBlobUrl = URL.createObjectURL(file);
     
-    // Continue with processing
     extractedTextSection.style.display = 'block';
     showStatus('info', 'Step 1: Reading PDF file...');
     const fileReader = new FileReader();
@@ -202,6 +194,15 @@ getDataBtn.addEventListener('click', async () => {
     if (extractedTextOutput.value.trim() === "") { showStatus('error', 'Please upload a PDF first.'); return; }
     if (!billGivenBy || !addedBy) { showStatus('error', 'Please fill "Bill Given By" and "Added By" fields.'); return; }
 
+    setLoading(true, "Getting latest columns from Google Sheet...");
+    try {
+        await fetchSheetHeaders();
+    } catch (error) {
+        showStatus('error', `Could not fetch headers from Google Sheet: ${error.message}`, true);
+        setLoading(false);
+        return;
+    }
+
     setLoading(true, "Processing with Gemini...");
     const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
     const payload = { contents: [{ parts: [{ text: `${DEFAULT_PROMPT}\n\nBill Text:\n${extractedTextOutput.value}` }] }] };
@@ -230,7 +231,7 @@ getDataBtn.addEventListener('click', async () => {
                 "PDF Link": "Pending Upload"
             };
             showStatus('info', 'Opening verification tab...', true);
-            openVerificationPopup(finalDataObject);
+            openVerificationPopup(finalDataObject, sheetHeaders);
         } else {
             showStatus('error', 'No valid JSON found in the AI response.', true);
             resultsDiv.innerHTML = `<pre>${geminiText}</pre>`;
@@ -243,35 +244,120 @@ getDataBtn.addEventListener('click', async () => {
     }
 });
 
-function openVerificationPopup(data) {
-    if (verificationPopup && !verificationPopup.closed) { verificationPopup.focus(); return; }
+function openVerificationPopup(data, headers) {
+    if (verificationPopup && !verificationPopup.closed) {
+        verificationPopup.focus();
+        return;
+    }
+
     verificationPopup = window.open('', '_blank');
+
+    if (!verificationPopup || verificationPopup.closed || typeof verificationPopup.closed == 'undefined') {
+        showStatus('error', 'Popup was blocked by your browser. Please allow popups for this site and try again.', true);
+        setLoading(false);
+        return;
+    }
+
     verificationPopup.document.write(`
         <!DOCTYPE html><html lang="en"><head><title>Verify Bill Data</title><style>
         body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;display:flex;height:100vh;margin:0;background-color:#f4f7fb}
         .panel{height:100%;box-sizing:border-box}#pdf-viewer{flex:1 1 55%;border-right:2px solid #d1d9e6}
         #form-container{flex:1 1 45%;padding:25px;overflow-y:auto;background-color:#fff}
         h2{color:#1a73e8;border-bottom:1px solid #eee;padding-bottom:10px;margin-top:0}
-        .form-row{margin-bottom:15px}label{font-weight:600;display:block;margin-bottom:5px;font-size:14px;color:#333}
-        textarea,input{width:100%;box-sizing:border-box;padding:10px;font-size:14px;border:1px solid #d1d9e6;border-radius:6px}
+        .form-row{display:flex;align-items:flex-end;gap:15px;margin-bottom:12px;}
+        .main-field{flex-grow:1;}
+        .form-row label{font-weight:600;display:block;margin-bottom:4px;font-size:14px;color:#333;}
+        textarea,input{width:100%;box-sizing:border-box;padding:10px;font-size:14px;border:1px solid #d1d9e6;border-radius:6px;background-color:#fafbfc}
         input[readonly]{background-color:#f0f0f0;cursor:not-allowed;color:#555}
+        .column-switcher{cursor:pointer;padding-bottom:8px;min-width:120px;text-align:right;}
+        .column-switcher .column-name{font-size:13px;color:#1a73e8;font-weight:500;border-bottom:1px dashed #1a73e8;}
+        .column-switcher select{font-size:13px;border-radius:6px;border-color:#d1d9e6;}
+        .column-switcher select{display:none;}
         button{background:linear-gradient(90deg,#34a853,#2a7b3b);color:#fff;width:100%;padding:14px;border:none;border-radius:8px;cursor:pointer;font-size:16px;font-weight:700;margin-top:15px}
         button:hover{box-shadow:0 4px 12px rgba(52,168,83,.3)}
         </style></head><body><div id="pdf-viewer" class="panel"><embed src="${pdfBlobUrl}" type="application/pdf" width="100%" height="100%"></div>
         <div id="form-container" class="panel"><h2>📝 Verify & Edit Data</h2><div id="editable-form"></div><button id="add-to-sheet-btn">Confirm and Add Data to Sheet</button></div>
         <script>
-            document.addEventListener('DOMContentLoaded',()=>{const data=${JSON.stringify(data)};
-            const formDiv=document.getElementById('editable-form');let formHtml='';
-            for(const key in data){const inputId='edit-'+key.replace(/[^a-zA-Z0-9]/g,'-');const value=String(data[key]||'').replace(/"/g,'&quot;');
-            const isReadOnly=(key==="Unique ID"||key.includes("Status")||key==="PDF Link");formHtml+='<div class="form-row">';
-            formHtml+=\`<label for="\${inputId}">\${key}</label>\`;
-            if(isReadOnly){formHtml+=\`<input type="text" id="\${inputId}" value="\${value}" readonly>\`;}
-            else{formHtml+=\`<textarea id="\${inputId}" rows="2">\${value}</textarea>\`;}formHtml+='</div>';}
-            formDiv.innerHTML=formHtml;
-            document.getElementById('add-to-sheet-btn').addEventListener('click',()=>{const finalData={};
-            formDiv.querySelectorAll('.form-row').forEach(row=>{const label=row.querySelector('label').innerText;
-            const input=row.querySelector('textarea, input');finalData[label]=input.value;});
-            window.opener.submitDataToSheet(finalData);window.close();});});
+            document.addEventListener('DOMContentLoaded',()=>{
+                const data=${JSON.stringify(data)};
+                const headers=${JSON.stringify(headers)};
+                const formDiv=document.getElementById('editable-form');
+                let formHtml='';
+
+                for(const key in data){
+                    // --- THIS LINE IS NOW CORRECTED ---
+                    const inputId='edit-'+key.replace(/[^a-zA-Z0-9]/g,'-');
+                    const value=String(data[key]||'').replace(/"/g,'&quot;');
+                    const isReadOnly=(key==="Unique ID"||key.includes("Status")||key==="PDF Link");
+                    
+                    formHtml+='<div class="form-row">';
+                    formHtml+='<div class="main-field">';
+                    formHtml+=\`<label for="\${inputId}">\${key}</label>\`;
+                    if(isReadOnly){
+                        formHtml+=\`<input type="text" id="\${inputId}" value="\${value}" readonly>\`;
+                    } else {
+                        formHtml+=\`<textarea id="\${inputId}" rows="1">\${value}</textarea>\`;
+                    }
+                    formHtml+='</div>';
+
+                    if (!isReadOnly) {
+                        let dropdownHtml = '<select class="column-selector">';
+                        let keyExistsInHeaders = false;
+                        headers.forEach(header => {
+                            const isSelected = header === key ? 'selected' : '';
+                            if (isSelected) keyExistsInHeaders = true;
+                            dropdownHtml += \`<option value="\${header}" \${isSelected}>\${header}</option>\`;
+                        });
+                        if (!keyExistsInHeaders) {
+                             dropdownHtml += \`<option value="\${key}" selected>\${key} (New)</option>\`;
+                        }
+                        dropdownHtml += '<option value="__addNew__">-- Add New Column --</option>';
+                        dropdownHtml += '</select>';
+
+                        formHtml += \`<div class="column-switcher" data-original-key="\${key}">
+                            <span class="column-name">\${key}</span>
+                            \${dropdownHtml}
+                        </div>\`;
+                    }
+                    formHtml+='</div>';
+                }
+                formDiv.innerHTML=formHtml;
+
+                formDiv.addEventListener('click', function(e) {
+                    const switcher = e.target.closest('.column-switcher');
+                    if (!switcher) return;
+                    const colNameSpan = switcher.querySelector('.column-name');
+                    const colSelect = switcher.querySelector('.column-selector');
+                    colNameSpan.style.display = 'none';
+                    colSelect.style.display = 'inline-block';
+                    colSelect.focus();
+                });
+
+                document.getElementById('add-to-sheet-btn').addEventListener('click',()=>{
+                    const finalData={};
+                    formDiv.querySelectorAll('.form-row').forEach(row => {
+                        const input = row.querySelector('textarea, input');
+                        const switcher = row.querySelector('.column-switcher');
+                        let key;
+                        const value = input.value;
+
+                        if (switcher) {
+                            const selector = switcher.querySelector('.column-selector');
+                            key = selector.value;
+                            if (key === '__addNew__') {
+                                const newKey = prompt("Please enter the new column name:");
+                                key = (newKey && newKey.trim() !== "") ? newKey.trim() : switcher.dataset.originalKey;
+                            }
+                        } else {
+                            key = row.querySelector('label').innerText;
+                        }
+                        
+                        if(key) { finalData[key] = value; }
+                    });
+                    window.opener.submitDataToSheet(finalData);
+                    window.close();
+                });
+            });
         <\/script></body></html>`);
     verificationPopup.document.close();
 }
@@ -294,74 +380,64 @@ async function submitDataToSheet(data) {
     }
 }
 
-
-// --- GOOGLE SHEETS & HELPER FUNCTIONS ---
-
-/**
- * NEW: Uploads the selected PDF file to Google Drive.
- * @param {File} fileObject The PDF file from the input.
- * @returns {Promise<string>} A promise that resolves with the web link of the uploaded file.
- */
-async function uploadPdfToDrive(fileObject) {
-    if (!fileObject) {
-        throw new Error("No PDF file found to upload.");
+async function fetchSheetHeaders() {
+    try {
+        const response = await gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'Sheet1!1:1'
+        });
+        sheetHeaders = response.result.values ? response.result.values[0] : [];
+    } catch (err) {
+        console.error('Error fetching sheet headers:', err);
+        const errorMessage = err.result?.error?.message || 'Could not fetch column headers from the sheet.';
+        throw new Error(errorMessage);
     }
+}
+
+async function uploadPdfToDrive(fileObject) {
+    if (!fileObject) throw new Error("No PDF file found to upload.");
     if (!DRIVE_FOLDER_ID || DRIVE_FOLDER_ID === 'YOUR_GOOGLE_DRIVE_FOLDER_ID') {
         throw new Error("Google Drive Folder ID is not set. Please update it in script.js.");
     }
-
-    const metadata = {
-        name: fileObject.name,
-        parents: [DRIVE_FOLDER_ID],
-        mimeType: 'application/pdf',
-    };
-
+    const metadata = { name: fileObject.name, parents: [DRIVE_FOLDER_ID], mimeType: 'application/pdf' };
     const form = new FormData();
     form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
     form.append('file', fileObject);
-
     const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
         method: 'POST',
         headers: new Headers({ 'Authorization': 'Bearer ' + gapi.client.getToken().access_token }),
         body: form,
     });
-
     if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error?.message || 'Failed to upload file to Google Drive.');
     }
-
     const fileData = await response.json();
-    console.log('File uploaded successfully:', fileData);
     return fileData.webViewLink;
 }
 
-
-// --- FINAL appendToSheet FUNCTION (USING ROW 1) ---
 async function appendToSheet(data) {
     const sheetName = 'Sheet1';
     try {
-        // Step 1: Read the headers from the FIRST row of the sheet.
         const headerResponse = await gapi.client.sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: `${sheetName}!1:1` // Reading only the first row for headers.
+            range: `${sheetName}!1:1`
         });
-
-        const sheetHeaders = headerResponse.result.values ? headerResponse.result.values[0] : [];
-
-        if (sheetHeaders.length === 0) {
-            showStatus('error', 'Could not find any headers in the first row of your Google Sheet. Please add them and try again.', true);
-            return;
+        const existingHeaders = headerResponse.result.values ? headerResponse.result.values[0] : [];
+        let finalHeaders = [...existingHeaders];
+        const dataKeys = Object.keys(data);
+        const newHeaders = dataKeys.filter(key => !existingHeaders.includes(key));
+        if (newHeaders.length > 0) {
+            finalHeaders = [...existingHeaders, ...newHeaders];
+            await gapi.client.sheets.spreadsheets.values.update({
+                spreadsheetId: SPREADSHEET_ID,
+                range: `${sheetName}!1:1`,
+                valueInputOption: 'RAW',
+                resource: { values: [finalHeaders] }
+            });
+            sheetHeaders = finalHeaders;
         }
-
-        // Step 2: Create the data row based on the order of headers in the sheet.
-        const orderedRow = sheetHeaders.map(header => {
-            // If our data object has a key that matches the sheet header, use its value.
-            // Otherwise, put an empty string to keep columns aligned.
-            return data[header] !== undefined ? data[header] : '';
-        });
-
-        // Step 3: Append this perfectly ordered row to the sheet.
+        const orderedRow = finalHeaders.map(header => data[header] !== undefined ? data[header] : '');
         await gapi.client.sheets.spreadsheets.values.append({
             spreadsheetId: SPREADSHEET_ID,
             range: sheetName,
@@ -369,17 +445,14 @@ async function appendToSheet(data) {
             insertDataOption: 'INSERT_ROWS',
             resource: { values: [orderedRow] }
         });
-
         showStatus('success', `Data successfully added! View it <a href="https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/" target="_blank">here</a>.`, true);
         processNewBtn.style.display = 'block';
-
     } catch (err) {
         console.error('Error appending data to sheet:', err);
         const errorMessage = err.result?.error?.message || 'Could not add data. Check console.';
         showStatus('error', errorMessage, true);
     }
 }
-
 
 function maybeEnableGetDataButton() {
     if (gapi && gapi.client && gapi.client.getToken()) {
@@ -418,7 +491,6 @@ function createDownloadButton() {
     downloadSection.appendChild(button);
 }
 
-// --- THIS FUNCTION IS NOW CORRECT ---
 function resetUIForNewBill() {
     extractedTextOutput.value = "";
     document.getElementById('bill-given-by').value = "";
@@ -428,53 +500,16 @@ function resetUIForNewBill() {
     extractedTextSection.style.display = 'none';
     getDataBtn.disabled = true;
     processNewBtn.style.display = 'none';
-    // The line "pdfFile = null;" has been removed from here.
 }
 
 function fullReset() {
     resetUIForNewBill();
     pdfUpload.value = "";
     if (pdfBlobUrl) { URL.revokeObjectURL(pdfBlobUrl); pdfBlobUrl = null; }
-    pdfFile = null; // It's correct to nullify the file on a full reset
+    pdfFile = null;
     showStatus('info', 'Ready for the next bill. Upload a PDF to begin.');
 }
 
-// --- START: NEW FUNCTIONS FOR APPROVAL FLOW ---
-
-/**
- * Note: These functions assume the column letters in your Google Sheet.
- * 'M' for 'HOD Approval Status' and 'N' for 'Final Approval Status'.
- * If your sheet structure is different, you MUST update these letters.
- */
-
-async function openHodApprovalTab() {
-    // This URL creates a temporary filter view in the Google Sheet.
-    // Replace 'gid=0' if your data is on a different sheet tab.
-    // The filter criteria will select rows where column M equals 'Pending'.
-    const filterUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit#gid=0&fvid=FILTER_VIEW_ID&filter=M%3D%22Pending%22`;
-    window.open(filterUrl, '_blank');
-}
-
-async function openFinalApprovalTab() {
-    // This URL creates a filter view for rows where column M is 'Approved' AND column N is 'Pending'.
-    const filterUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit#gid=0&fvid=FILTER_VIEW_ID&filter=M%3D%22Approved%22%2CN%3D%22Pending%22`;
-    window.open(filterUrl, '_blank');
-}
-
-// --- END: NEW FUNCTIONS ---
-
-
-// --- INITIAL EVENT LISTENERS ---
 authorizeBtn.onclick = handleAuthClick;
 signoutBtn.onclick = handleSignoutClick;
 processNewBtn.addEventListener('click', fullReset);
-
-// --- START: NEW EVENT LISTENERS ---
-hodApprovalBtn.addEventListener('click', openHodApprovalTab);
-finalApprovalBtn.addEventListener('click', openFinalApprovalTab);
-
-// --- END: NEW EVENT LISTENERS ---
-
-
-
-
