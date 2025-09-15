@@ -120,7 +120,7 @@ A. always Give CGSTAmount, SGSTAmount, IGSTAmount, Don't Inclode in Once
 B. Always Keep Col name Vendor, always keep Col name Company, always keep col name CapitalOrRevenueExpense
 C. Add a Col Part Payment and in val add 0 Every Time,
 D. Memo No, Doc No both are same as invoice No, always Keep In InvoiceNumber
-E.Also We need to show Few Col (CapitalOrRevenueExpense,ExpenseName, AssetGroup, TDSApplicable,TDSRate, TDSAmount, TDSSection, RCMApplicable, GSTInputIncluded, GSTCorrect, CGSTAmount, SGSTAmount, IGSTAmount, FinalAmountPayable, PartPayment, Remarks)
+E.Also We need to show Few Col (CapitalOrRevenueExpense,ExpenseName, Taxable Value, TDSApplicable,TDSRate, TDSAmount, TDSSection, RCMApplicable, GSTInputIncluded, GSTCorrect, CGSTAmount, SGSTAmount, IGSTAmount, FinalAmountPayable, PartPayment, Remarks)
 F. Add 2 Column (Accountant Approval, CFO Approval) always add val Pending
 Return ONLY valid JSON without any extra text, explanation, or markdown formatting.`;
 
@@ -513,3 +513,4 @@ function fullReset() {
 authorizeBtn.onclick = handleAuthClick;
 signoutBtn.onclick = handleSignoutClick;
 processNewBtn.addEventListener('click', fullReset);
+
