@@ -207,7 +207,8 @@ getDataBtn.addEventListener('click', async () => {
 
     setLoading(true, "Processing with Gemini...");
     // const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
-    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    // const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
     const payload = { contents: [{ parts: [{ text: `${DEFAULT_PROMPT}\n\nBill Text:\n${extractedTextOutput.value}` }] }] };
     try {
         const response = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -516,6 +517,7 @@ function fullReset() {
 authorizeBtn.onclick = handleAuthClick;
 signoutBtn.onclick = handleSignoutClick;
 processNewBtn.addEventListener('click', fullReset);
+
 
 
 
