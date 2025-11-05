@@ -1,8 +1,8 @@
 // --- START: REQUIRED KEYS (REPLACE THESE) ---
 // AIzaSyD20V3kl-bSkyBL8XZWKORc7d4fImHYjNM
 // Old-AIzaSyCDEGN1ZXXVda9yhp2bHhpzT5yncr66CKY
-const GEMINI_API_KEY = "AIzaSyCDEGN1ZXXVda9yhp2bHhpzT5yncr66CKY"; // <--- ⚠️ PASTE YOUR GEMINI API KEY HERE
-const GOOGLE_CLOUD_API_KEY = "AIzaSyBzpd32TmhuLyFjZ7t3J4__KuY7c3Gm-P0"; // <--- ⚠️ PASTE YOUR GOOGLE CLOUD API KEY HERE
+const GEMINI_API_KEY = ""; // <--- ⚠️ PASTE YOUR GEMINI API KEY HERE //AIzaSyCDEGN1ZXXVda9yhp2bHhpzT5yncr66CKY
+const GOOGLE_CLOUD_API_KEY = "AIzaSyCfCI17yaqw1XvOcjEF2qbCoKGZbt8w8t0"; // <--- ⚠️ PASTE YOUR GOOGLE CLOUD API KEY HERE
 const GOOGLE_CLIENT_ID = '316419019852-4dum2avurto1fv23lm0mrehl6pa8k103.apps.googleusercontent.com'; // <--- ⚠️ PASTE YOUR NEW CLIENT ID HERE
 const SPREADSHEET_ID = '1j359MdhUs9mScAnC7T0fB33LAZY2F_WISLxAbgGnHDM';
 const DRIVE_FOLDER_ID = '1m1UqRMWNX5c7BBUg5_j5NF5JAm1HQuQO'; // <--- ⚠️ PASTE YOUR GOOGLE DRIVE FOLDER ID HERE
@@ -517,6 +517,7 @@ function fullReset() {
 authorizeBtn.onclick = handleAuthClick;
 signoutBtn.onclick = handleSignoutClick;
 processNewBtn.addEventListener('click', fullReset);
+
 
 
 
