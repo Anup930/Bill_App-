@@ -1,5 +1,5 @@
 // --- START: REQUIRED KEYS & URL ---
-const GOOGLE_CLOUD_API_KEY = "AIzaSyBzpd32TmhuLyFjZ7t3J4__KuY7c3Gm-P0";
+const GOOGLE_CLOUD_API_KEY = "AIzaSyCfCI17yaqw1XvOcjEF2qbCoKGZbt8w8t0";
 const GOOGLE_CLIENT_ID = '316419019852-4dum2avurto1fv23lm0mrehl6pa8k103.apps.googleusercontent.com';
 const SPREADSHEET_ID = '1j359MdhUs9mScAnC7T0fB33LAZY2F_WISLxAbgGnHDM';
 
@@ -321,4 +321,5 @@ finalPendingBtn.addEventListener('click', () => {
 backToHeadersBtn.addEventListener('click', () => switchView('header-selection-view'));
 
 sendHodApprovalBtn.addEventListener('click', () => sendApprovalEmails('HOD'));
+
 sendFinalApprovalBtn.addEventListener('click', () => sendApprovalEmails('Final'));
