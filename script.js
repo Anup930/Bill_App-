@@ -1,7 +1,7 @@
 // --- START: REQUIRED KEYS (REPLACE THESE) ---
 // AIzaSyD20V3kl-bSkyBL8XZWKORc7d4fImHYjNM
 // Old-AIzaSyCDEGN1ZXXVda9yhp2bHhpzT5yncr66CKY
-const GEMINI_API_KEY = ""; // <--- ⚠️ PASTE YOUR GEMINI API KEY HERE //AIzaSyCDEGN1ZXXVda9yhp2bHhpzT5yncr66CKY
+const GEMINI_API_KEY = "AIzaSyCDEGN1ZXXVda9yhp2bHhpzT5yncr66CKY"; // <--- ⚠️ PASTE YOUR GEMINI API KEY HERE //AIzaSyCDEGN1ZXXVda9yhp2bHhpzT5yncr66CKY
 const GOOGLE_CLOUD_API_KEY = "AIzaSyCtGleETIdBzb62E_uS1-xKJq2rtJf7IbI"; // <--- ⚠️ PASTE YOUR GOOGLE CLOUD API KEY HERE
 const GOOGLE_CLIENT_ID = '11695437694-vdhi7mtrobv6nhpsv2171g883adu3o6l.apps.googleusercontent.com'; // <--- ⚠️ PASTE YOUR NEW CLIENT ID HERE
 const SPREADSHEET_ID = '1j359MdhUs9mScAnC7T0fB33LAZY2F_WISLxAbgGnHDM';
@@ -517,6 +517,7 @@ function fullReset() {
 authorizeBtn.onclick = handleAuthClick;
 signoutBtn.onclick = handleSignoutClick;
 processNewBtn.addEventListener('click', fullReset);
+
 
 
 
