@@ -1,5 +1,3 @@
-// V4.7
-
 // --- START: REQUIRED KEYS (REPLACE THESE) ---
 // AIzaSyD20V3kl-bSkyBL8XZWKORc7d4fImHYjNM
 // Old-AIzaSyCDEGN1ZXXVda9yhp2bHhpzT5yncr66CKY
@@ -68,55 +66,28 @@ function gisLoaded() {
         showStatus('error', 'Could not initialize Google Sign-In. Check your Google Client ID.');
     }
 }
-
-// --- START OF AUTHENTICATION FIX ---
 function maybeEnableAuthButtons() {
     if (gapiInited && gisInited) {
         authorizeBtn.style.visibility = 'visible';
-        
-        // Check for an existing session silently on load
-        tokenClient.callback = (resp) => {
-            if (resp.error !== undefined) {
-                // No valid session/token, user must click 'Authorize'
-                authorizeBtn.innerText = 'Authorize Google Sheets';
-                showStatus('info', 'Please click "Authorize Google Sheets" to grant access.');
-            } else {
-                // Successful silent authorization
-                signoutBtn.style.visibility = 'visible';
-                authorizeBtn.innerText = 'Refresh Token';
-                showStatus('success', 'Authorization session restored. Ready to process the bill.');
-                maybeEnableGetDataButton();
-            }
-        };
-        
-        // Attempt silent access token request
-        tokenClient.requestAccessToken({ prompt: '' });
     }
 }
-// --- END OF AUTHENTICATION FIX ---
-
 
 // --- AUTHENTICATION HANDLERS ---
 function handleAuthClick() {
     if (!tokenClient) { console.error("Token client not initialized."); return; }
-    
-    // Set up the callback for INTERACTIVE authorization
     tokenClient.callback = (resp) => {
-        if (resp.error !== undefined) { 
-            console.error("Auth Error:", resp);
-            showStatus('error', 'Authorization failed. Check console for details.');
-            return;
-        }
+        if (resp.error !== undefined) { console.error("Auth Error:", resp); throw (resp); }
         signoutBtn.style.visibility = 'visible';
         authorizeBtn.innerText = 'Refresh Token';
         showStatus('success', 'Authorization successful! You can now process the bill.');
         maybeEnableGetDataButton();
     };
-    
-    // Request access token, forcing consent dialog if no token is available or if permission is missing
-    tokenClient.requestAccessToken({ prompt: 'consent' });
+    if (gapi.client.getToken() === null) {
+        tokenClient.requestAccessToken({ prompt: 'consent' });
+    } else {
+        tokenClient.requestAccessToken({ prompt: '' });
+    }
 }
-
 function handleSignoutClick() {
     const token = gapi.client.getToken();
     if (token !== null) {
@@ -145,7 +116,7 @@ const DEFAULT_PROMPT = `Kindly Read carefuly and tell me the following details i
 12. Is the nature of IGST or CGST and SGST as per Place of Supply in GST correct?
 13. what is the amount of cgst, sgst or igst input included in the bill?
 14. What is the final amount payable to the vendor?
-15. Are there any remarks mentioned in the bill?
+15. Are there any remarks mentioned in the bill?
 Note: 
 A. always Give CGSTAmount, SGSTAmount, IGSTAmount, Don't Inclode in Once
 B. Always Keep Col name Vendor, always keep Col name Company, always keep col name CapitalOrRevenueExpense
@@ -546,3 +517,17 @@ function fullReset() {
 authorizeBtn.onclick = handleAuthClick;
 signoutBtn.onclick = handleSignoutClick;
 processNewBtn.addEventListener('click', fullReset);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
