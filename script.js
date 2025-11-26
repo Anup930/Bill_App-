@@ -4,7 +4,8 @@
 
 // Old-AIzaSyCDEGN1ZXXVda9yhp2bHhpzT5yncr66CKY
 
-const GEMINI_API_KEY = "AIzaSyBAzQ-zI3DN1VWVPjkT8QGIRNA7X18kmJs"; // <--- ⚠️ PASTE YOUR GEMINI API KEY HERE //AIzaSyCDEGN1ZXXVda9yhp2bHhpzT5yncr66CKY
+const GEMINI_API_KEY = "AIzaSyCNAzq1NaHaY64bcaRo3x5lWj7qA53frPQ"; // <--- ⚠️ PASTE YOUR GEMINI API KEY HERE //AIzaSyCDEGN1ZXXVda9yhp2bHhpzT5yncr66CKY
+                                        // AIzaSyCNAzq1NaHaY64bcaRo3x5lWj7qA53frPQ AIzaSyBAzQ-zI3DN1VWVPjkT8QGIRNA7X18kmJs
 
 const GOOGLE_CLOUD_API_KEY = "AIzaSyBzpd32TmhuLyFjZ7t3J4__KuY7c3Gm-P0"; // <--- ⚠️ PASTE YOUR GOOGLE CLOUD API KEY HERE
 
@@ -1035,3 +1036,4 @@ authorizeBtn.onclick = handleAuthClick;
 signoutBtn.onclick = handleSignoutClick;
 
 processNewBtn.addEventListener('click', fullReset);
+
