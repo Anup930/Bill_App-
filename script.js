@@ -1,3 +1,5 @@
+// V4.7
+
 // --- START: REQUIRED KEYS (REPLACE THESE) ---
 // AIzaSyD20V3kl-bSkyBL8XZWKORc7d4fImHYjNM
 // Old-AIzaSyCDEGN1ZXXVda9yhp2bHhpzT5yncr66CKY
@@ -13,12 +15,11 @@ let gapiInited = false;
 let gisInited = false;
 
 // Comment: Global variables for app state
-let pdfFile = null; // Current file being processed (in the loop)
-let pdfBlobUrl = null; // Blob URL for the current file
+let pdfFile = null;
+let pdfBlobUrl = null;
 let verificationPopup = null;
 let billData = [];
 let sheetHeaders = [];
-let filesToProcess = []; // NEW: Array of files selected by the user
 
 // Comment: Get references to DOM elements
 const pdfUpload = document.getElementById('pdf-upload');
@@ -68,7 +69,7 @@ function gisLoaded() {
     }
 }
 
-// --- AUTHENTICATION HANDLERS (UPDATED FOR SILENT REFRESH) ---
+// --- START OF AUTHENTICATION FIX ---
 function maybeEnableAuthButtons() {
     if (gapiInited && gisInited) {
         authorizeBtn.style.visibility = 'visible';
@@ -83,16 +84,19 @@ function maybeEnableAuthButtons() {
                 // Successful silent authorization
                 signoutBtn.style.visibility = 'visible';
                 authorizeBtn.innerText = 'Refresh Token';
-                showStatus('success', 'Authorization session restored. Ready to process the bill(s).');
+                showStatus('success', 'Authorization session restored. Ready to process the bill.');
                 maybeEnableGetDataButton();
             }
         };
         
-        // Attempt silent access token request (prompt: '' ensures non-interactive attempt)
+        // Attempt silent access token request
         tokenClient.requestAccessToken({ prompt: '' });
     }
 }
+// --- END OF AUTHENTICATION FIX ---
 
+
+// --- AUTHENTICATION HANDLERS ---
 function handleAuthClick() {
     if (!tokenClient) { console.error("Token client not initialized."); return; }
     
@@ -105,11 +109,11 @@ function handleAuthClick() {
         }
         signoutBtn.style.visibility = 'visible';
         authorizeBtn.innerText = 'Refresh Token';
-        showStatus('success', 'Authorization successful! You can now process the bill(s).');
+        showStatus('success', 'Authorization successful! You can now process the bill.');
         maybeEnableGetDataButton();
     };
     
-    // Request access token, forcing consent dialog
+    // Request access token, forcing consent dialog if no token is available or if permission is missing
     tokenClient.requestAccessToken({ prompt: 'consent' });
 }
 
@@ -126,136 +130,66 @@ function handleSignoutClick() {
 }
 
 // --- CORE APPLICATION LOGIC ---
-const BILL_EXTRACTION_PROMPT = `Kindly Read carefully and tell me the following details in JSON format for the provided bill text. Extract the following 15 details:
-1. Vendor (Name of the Vendor)
-2. Company (Name of the company on which this bill has been raise)
-3. InvoiceNumber (Note: Memo No, Doc No both are same as invoice No, always Keep In InvoiceNumber)
-4. CapitalOrRevenueExpense (Is this is a capital or revenue expense?)
-5. ExpenseName (What is the expense name in which the bill should be booked if it is a revenue expenditure? If it is a capital expenditure, under which asset group should it be capitalised?)
-6. TDSApplicable (Is TDS Applicable on this bill?)
-7. TDSRate (If tds is applicable what is the rate?)
-8. TDSAmount (what is the amount of tds if applicable?)
-9. TDSSection (Under which TDS Section this deduction is applicable?)
-10. RCMApplicable (Is GST under RCM applicable?)
-11. GSTInputIncluded (Is GST Input included in the bill?)
-12. GSTCorrect (Is the nature of IGST or CGST and SGST as per Place of Supply in GST correct?)
-13. CGSTAmount, SGSTAmount, IGSTAmount (What is the amount of cgst, sgst or igst input included in the bill? Always Give CGSTAmount, SGSTAmount, IGSTAmount, Don't Inclode in Once)
-14. FinalAmountPayable (What is the final amount payable to the vendor?)
-15. Remarks (Are there any remarks mentioned in the bill?)
-
-Note:
-A. Add a Col Part Payment and set its value to 0 every time.
-B. Add 2 Columns (Accountant Approval, CFO Approval) and set the value to Pending.
-C. Ensure the following columns are included in the final JSON, even if blank: Vendor, Company, CapitalOrRevenueExpense, ExpenseName, Taxable Value, TDSApplicable, TDSRate, TDSAmount, TDSSection, RCMApplicable, GSTInputIncluded, GSTCorrect, CGSTAmount, SGSTAmount, IGSTAmount, FinalAmountPayable, PartPayment, Remarks.
-Return ONLY valid JSON without any extra text, explanation, or markdown formatting.
-
-Bill Text:
-`;
-
+const DEFAULT_PROMPT = `Kindly Read carefuly and tell me the following details in JSON format:
+1. Name of the Vendor
+2. Name of the company on which this bill has been raise
+3. What is the Invoice Number?
+4. Is this is a capital or revenue expense?
+5. ⁠What is the expense name in which the bill should be booked if it is a revenue expenditure? If it is a capital expenditure, under which asset group should it be capitalised?
+6. Is TDS Applicable on this bill?
+7. If tds is applicable what is the rate?
+8. what is the amount of tds if applicable?
+9. Under which TDS Section this deduction is applicable?
+10. Is GST under RCM applicable?
+11. Is GST Input included in the bill?
+12. Is the nature of IGST or CGST and SGST as per Place of Supply in GST correct?
+13. what is the amount of cgst, sgst or igst input included in the bill?
+14. What is the final amount payable to the vendor?
+15. Are there any remarks mentioned in the bill?
+Note: 
+A. always Give CGSTAmount, SGSTAmount, IGSTAmount, Don't Inclode in Once
+B. Always Keep Col name Vendor, always keep Col name Company, always keep col name CapitalOrRevenueExpense
+C. Add a Col Part Payment and in val add 0 Every Time,
+D. Memo No, Doc No both are same as invoice No, always Keep In InvoiceNumber
+E.Also We need to show Few Col (CapitalOrRevenueExpense,ExpenseName, Taxable Value, TDSApplicable,TDSRate, TDSAmount, TDSSection, RCMApplicable, GSTInputIncluded, GSTCorrect, CGSTAmount, SGSTAmount, IGSTAmount, FinalAmountPayable, PartPayment, Remarks)
+F. Add 2 Column (Accountant Approval, CFO Approval) always add val Pending
+Return ONLY valid JSON without any extra text, explanation, or markdown formatting.`;
 
 pdfUpload.addEventListener('change', async (event) => {
-    filesToProcess = Array.from(event.target.files).filter(file => file.type === 'application/pdf');
-    if (filesToProcess.length === 0) {
-        showStatus('error', 'Please select one or more PDF files.');
-        resetUIForNewBill();
-        return;
-    }
+    const file = event.target.files[0];
+    if (!file) return;
     
-    // Reset for the new batch
     resetUIForNewBill();
-    let billBatch = []; // Stores objects {file, text, blobUrl} for the selected batch
 
-    // Process all files sequentially to extract text
-    let allTextCombined = '';
+    pdfFile = file;
+    if (pdfBlobUrl) { URL.revokeObjectURL(pdfBlobUrl); }
+    pdfBlobUrl = URL.createObjectURL(file);
     
-    for (let i = 0; i < filesToProcess.length; i++) {
-        const file = filesToProcess[i];
-        showStatus('info', `Step 1: Reading file ${i + 1} of ${filesToProcess.length}: **${file.name}**...`);
-        
-        // Clear old blob URL and create new one for current file (for PDF preview)
-        if (pdfBlobUrl) { URL.revokeObjectURL(pdfBlobUrl); }
-        const currentBlobUrl = URL.createObjectURL(file); 
-
-        const fileReader = new FileReader();
-        
-        // Wrap the file reading in a Promise to wait for it
-        const extractedText = await new Promise((resolve) => {
-            fileReader.onload = async function() {
-                const typedarray = new Uint8Array(this.result);
-                try {
-                    const text = await extractTextFromPdf(typedarray);
-                    resolve(text);
-                } catch (error) {
-                    console.error(`Error processing ${file.name}:`, error);
-                    resolve(null);
-                }
-            };
-            fileReader.readAsArrayBuffer(file);
-        });
-
-        if (extractedText) {
-            billBatch.push({
-                file: file,
-                text: extractedText,
-                blobUrl: currentBlobUrl // Save the current blob URL
-            });
-            allTextCombined += `\n--- START BILL ${i + 1} (${file.name}) ---\n${extractedText}\n--- END BILL ${i + 1} ---\n`;
-        } else {
-            showStatus('error', `Skipping file ${file.name}: Could not extract text.`);
-            // Revoke URL if skipped to prevent memory leak
-            URL.revokeObjectURL(currentBlobUrl);
+    extractedTextSection.style.display = 'block';
+    showStatus('info', 'Step 1: Reading PDF file...');
+    const fileReader = new FileReader();
+    fileReader.onload = async function() {
+        const typedarray = new Uint8Array(this.result);
+        try {
+            const extractedText = await extractTextFromPdf(typedarray);
+            if (extractedText) {
+                extractedTextOutput.value = extractedText;
+                showStatus('success', 'Text extracted! Please fill manual details and authorize Google Sheets.');
+                maybeEnableGetDataButton();
+            } else {
+                showStatus('error', 'Could not extract any text from the PDF.');
+            }
+        } catch (error) {
+            console.error("Processing Error:", error);
+            showStatus('error', 'An error occurred while processing the PDF.');
         }
-    }
-
-    // Store the processed batch for the next step
-    filesToProcess = billBatch;
-
-    if (filesToProcess.length > 0) {
-        extractedTextSection.style.display = 'block';
-        extractedTextOutput.value = allTextCombined.trim();
-        showStatus('success', `${filesToProcess.length} bill(s) text extracted! Please fill manual details and authorize Google Sheets.`);
-        maybeEnableGetDataButton();
-    } else {
-        showStatus('error', 'No valid PDF text was extracted from the selection.');
-    }
+    };
+    fileReader.readAsArrayBuffer(file);
 });
-
-// async function extractTextFromPdf(pdfData) {
-//     const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
-//     let combinedText = '';
-//     for (let i = 1; i <= pdf.numPages; i++) {
-//         const page = await pdf.getPage(i);
-//         const textContent = await page.getTextContent();
-//         if (textContent.items.length > 0) {
-//             combinedText += textContent.items.map(s => s.str).join(' ') + '\n';
-//         }
-//     }
-//     if (!combinedText.trim()) {
-//         // Fallback to OCR
-//         // Note: For large batches, this OCR logic can be very slow.
-//         showStatus('info', 'No direct text found. Starting OCR...');
-//         const worker = await Tesseract.createWorker('eng');
-//         for (let i = 1; i <= pdf.numPages; i++) {
-//             showStatus('info', `Processing Page ${i}/${pdf.numPages} with OCR...`);
-//             const page = await pdf.getPage(i);
-//             const viewport = page.getViewport({ scale: 2.0 });
-//             const canvas = document.createElement('canvas');
-//             canvas.height = viewport.height;
-//             canvas.width = viewport.width;
-//             await page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
-//             const { data: { text } } = await worker.recognize(canvas);
-//             combinedText += text + '\n';
-//         }
-//         await worker.terminate();
-//     }
-//     return combinedText.trim();
-// }
 
 async function extractTextFromPdf(pdfData) {
     const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
     let combinedText = '';
-
-    // --- 1. Attempt standard PDF text extraction ---
     for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const textContent = await page.getTextContent();
@@ -263,67 +197,32 @@ async function extractTextFromPdf(pdfData) {
             combinedText += textContent.items.map(s => s.str).join(' ') + '\n';
         }
     }
-
-    if (combinedText.trim()) {
-        console.log("PDF.js successful. Extracted text length:", combinedText.trim().length);
-        return combinedText.trim();
-    }
-    
-    // --- 2. Fallback to OCR (Tesseract.js) ---
-    console.log("No direct text found. Starting OCR fallback...");
-    showStatus('info', 'No direct text found. Starting OCR...'); // Keep this in the main status area
-
-    let worker = null;
-    try {
-        worker = await Tesseract.createWorker('eng');
+    if (!combinedText.trim()) {
+        showStatus('info', 'No direct text found. Starting OCR...');
+        const worker = await Tesseract.createWorker('eng');
         for (let i = 1; i <= pdf.numPages; i++) {
-            console.log(`[OCR] Processing Page ${i}/${pdf.numPages}...`);
-            // Note: Removed the showStatus update here to prevent interference with Tesseract logging
-            
+            showStatus('info', `Processing Page ${i}/${pdf.numPages} with OCR...`);
             const page = await pdf.getPage(i);
             const viewport = page.getViewport({ scale: 2.0 });
             const canvas = document.createElement('canvas');
             canvas.height = viewport.height;
             canvas.width = viewport.width;
-            
             await page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
-            
             const { data: { text } } = await worker.recognize(canvas);
             combinedText += text + '\n';
         }
-    } catch (ocrError) {
-        console.error("Tesseract OCR failed:", ocrError);
-        showStatus('error', `OCR failed: ${ocrError.message}`, true);
-    } finally {
-        if (worker) {
-            await worker.terminate();
-        }
+        await worker.terminate();
     }
-    
-    // Final check for OCR output
-    const finalResult = combinedText.trim();
-    if (finalResult) {
-        console.log("OCR successful. Final extracted text length:", finalResult.length);
-    } else {
-        console.log("OCR failed to produce any text.");
-    }
-    
-    return finalResult;
+    return combinedText.trim();
 }
 
-
 getDataBtn.addEventListener('click', async () => {
-    if (filesToProcess.length === 0) {
-        showStatus('error', 'No bills available for processing. Please upload PDF files.');
-        return;
-    }
-    
     const billSource = document.getElementById('bill-source').value;
     const billGivenBy = document.getElementById('bill-given-by').value;
     const addedBy = document.getElementById('added-by').value;
     const hodApproval = document.getElementById('hod-approval').value;
     const finalApproval = document.getElementById('final-approval').value;
-    
+    if (extractedTextOutput.value.trim() === "") { showStatus('error', 'Please upload a PDF first.'); return; }
     if (!billGivenBy || !addedBy) { showStatus('error', 'Please fill "Bill Given By" and "Added By" fields.'); return; }
 
     setLoading(true, "Getting latest columns from Google Sheet...");
@@ -335,100 +234,48 @@ getDataBtn.addEventListener('click', async () => {
         return;
     }
 
-    // --- LOOP THROUGH ALL BILLS ---
-    for (let i = 0; i < filesToProcess.length; i++) {
-        const currentBill = filesToProcess[i];
-        
-        setLoading(true, `Processing Bill ${i + 1} of ${filesToProcess.length} with Gemini: **${currentBill.file.name}**...`);
-        
-        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-        const promptWithText = BILL_EXTRACTION_PROMPT + currentBill.text;
-        const payload = { contents: [{ parts: [{ text: promptWithText }] }] };
-        
-        try {
-            const response = await fetch(API_URL, { 
-                method: 'POST', 
-                headers: { 'Content-Type': 'application/json' }, 
-                body: JSON.stringify(payload) 
-            });
-            
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error ? errorData.error.message : `API request failed with status ${response.status}`);
-            }
-            
-            const data = await response.json();
-            const geminiText = data.candidates[0].content.parts[0].text;
-            const jsonMatch = geminiText.match(/\{[\s\S]*\}/);
-            
-            if (jsonMatch) {
-                const parsedData = JSON.parse(jsonMatch[0]);
-                const uniqueId = `BID-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
-                
-                const finalDataObject = {
-                    "Unique ID": uniqueId,
-                    ...parsedData,
-                    "Bill Source": billSource,
-                    "Bill Given By": billGivenBy,
-                    "Added By": addedBy,
-                    "HOD Approval": hodApproval,
-                    "Final Approval": finalApproval,
-                    'HOD Approval Status': 'Pending',
-                    'Final Approval Status': 'Pending',
-                    "PDF Link": "Pending Upload"
-                };
-                
-                showStatus('info', `Opening verification tab for bill ${i + 1} (${currentBill.file.name})...`, true);
-                
-                // Pause the loop and wait for the user to submit/close the popup
-                await openVerificationAndWait(finalDataObject, currentBill.file, currentBill.blobUrl);
-
-            } else {
-                showStatus('error', `Bill ${i + 1} (${currentBill.file.name}): No valid JSON found in the AI response.`, true);
-            }
-        } catch (error) {
-            console.error(`Gemini API/Processing Error for Bill ${i + 1}:`, error);
-            showStatus('error', `Bill ${i + 1} Error: ${error.message}`, true);
+    setLoading(true, "Processing with Gemini...");
+    // const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    // const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+    const payload = { contents: [{ parts: [{ text: `${DEFAULT_PROMPT}\n\nBill Text:\n${extractedTextOutput.value}` }] }] };
+    try {
+        const response = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error ? errorData.error.message : `API request failed with status ${response.status}`);
         }
+        const data = await response.json();
+        const geminiText = data.candidates[0].content.parts[0].text;
+        const jsonMatch = geminiText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            const parsedData = JSON.parse(jsonMatch[0]);
+            const uniqueId = `BID-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
+            const finalDataObject = {
+                "Unique ID": uniqueId,
+                ...parsedData,
+                "Bill Source": billSource,
+                "Bill Given By": billGivenBy,
+                "Added By": addedBy,
+                "HOD Approval": hodApproval,
+                "Final Approval": finalApproval,
+                'HOD Approval Status': 'Pending',
+                'Final Approval Status': 'Pending',
+                "PDF Link": "Pending Upload"
+            };
+            showStatus('info', 'Opening verification tab...', true);
+            openVerificationPopup(finalDataObject, sheetHeaders);
+        } else {
+            showStatus('error', 'No valid JSON found in the AI response.', true);
+            resultsDiv.innerHTML = `<pre>${geminiText}</pre>`;
+        }
+    } catch (error) {
+        console.error('Gemini API/Processing Error:', error);
+        showStatus('error', `Error: ${error.message}`, true);
+    } finally {
+        setLoading(false);
     }
-    // --- END LOOP ---
-    
-    setLoading(false);
-    showStatus('success', 'All bills in the batch have been processed or skipped.', true);
-    processNewBtn.style.display = 'block';
 });
-
-// NEW FUNCTION TO HANDLE ASYNC POPUP SUBMISSION
-function openVerificationAndWait(data, file, blobUrl) {
-    return new Promise((resolve, reject) => {
-        // Temporarily set the current file and blob URL for the submitDataToSheet function to use
-        pdfFile = file;
-        pdfBlobUrl = blobUrl;
-        
-        // Pass the resolve function to the window object so the popup can call it
-        window.resolveSubmission = (finalData) => {
-            // This is called by the popup when the user confirms
-            submitDataToSheet(finalData)
-                .then(() => resolve(true))
-                .catch(reject)
-                .finally(() => {
-                    if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
-                    pdfBlobUrl = null;
-                });
-        };
-        
-        openVerificationPopup(data, sheetHeaders);
-
-        // Add a handler for when the popup is closed without submitting
-        const checkClosed = setInterval(() => {
-            if (verificationPopup && verificationPopup.closed) {
-                clearInterval(checkClosed);
-                // The popup was closed without resolving, just move to next bill
-                resolve(false); 
-            }
-        }, 500);
-    });
-}
 
 function openVerificationPopup(data, headers) {
     if (verificationPopup && !verificationPopup.closed) {
@@ -443,8 +290,7 @@ function openVerificationPopup(data, headers) {
         setLoading(false);
         return;
     }
-    
-    // Use the global pdfBlobUrl set by openVerificationAndWait
+
     verificationPopup.document.write(`
         <!DOCTYPE html><html lang="en"><head><title>Verify Bill Data</title><style>
         body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;display:flex;height:100vh;margin:0;background-color:#f4f7fb}
@@ -472,6 +318,7 @@ function openVerificationPopup(data, headers) {
                 let formHtml='';
 
                 for(const key in data){
+                    // --- THIS LINE IS NOW CORRECTED ---
                     const inputId='edit-'+key.replace(/[^a-zA-Z0-9]/g,'-');
                     const value=String(data[key]||'').replace(/"/g,'&quot;');
                     const isReadOnly=(key==="Unique ID"||key.includes("Status")||key==="PDF Link");
@@ -540,8 +387,7 @@ function openVerificationPopup(data, headers) {
                         
                         if(key) { finalData[key] = value; }
                     });
-                    // Call the resolver function to continue the async loop in the opener window
-                    window.opener.resolveSubmission(finalData); 
+                    window.opener.submitDataToSheet(finalData);
                     window.close();
                 });
             });
@@ -550,8 +396,7 @@ function openVerificationPopup(data, headers) {
 }
 
 async function submitDataToSheet(data) {
-    // Uses global pdfFile set by openVerificationAndWait
-    setLoading(true, `Uploading PDF **${pdfFile.name}** to Google Drive...`);
+    setLoading(true, "Uploading PDF to Google Drive...");
     try {
         const fileLink = await uploadPdfToDrive(pdfFile);
         data["PDF Link"] = fileLink;
@@ -560,11 +405,9 @@ async function submitDataToSheet(data) {
         billData.push(data);
         createDownloadButton();
         await appendToSheet(data);
-        return Promise.resolve(); // Indicate successful submission
     } catch (error) {
         console.error('Error during submission process:', error);
-        showStatus('error', `Submission failed for ${pdfFile.name}: ${error.message}`, true);
-        return Promise.reject(error); // Indicate failed submission
+        showStatus('error', `Submission failed: ${error.message}`, true);
     } finally {
         setLoading(false);
     }
@@ -635,20 +478,19 @@ async function appendToSheet(data) {
             insertDataOption: 'INSERT_ROWS',
             resource: { values: [orderedRow] }
         });
-        showStatus('success', `Data for **${pdfFile.name}** successfully added! View it <a href="https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/" target="_blank">here</a>.`, true);
+        showStatus('success', `Data successfully added! View it <a href="https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/" target="_blank">here</a>.`, true);
+        processNewBtn.style.display = 'block';
     } catch (err) {
         console.error('Error appending data to sheet:', err);
         const errorMessage = err.result?.error?.message || 'Could not add data. Check console.';
         showStatus('error', errorMessage, true);
-        throw new Error(errorMessage);
     }
 }
 
 function maybeEnableGetDataButton() {
-    if (gapi && gapi.client && gapi.client.getToken() && filesToProcess.length > 0) {
-        getDataBtn.disabled = false;
-    } else {
-        getDataBtn.disabled = true;
+    if (gapi && gapi.client && gapi.client.getToken()) {
+        const hasText = extractedTextOutput.value.trim() !== "";
+        getDataBtn.disabled = !hasText;
     }
 }
 
@@ -661,8 +503,7 @@ function showStatus(type, message, isResult = false) {
     const targetDiv = isResult ? resultsDiv : statusArea;
     const messageHtml = `<div class="${type}">${message}</div>`;
     if (isResult) {
-        // Prepend to results so latest message is on top
-        targetDiv.insertAdjacentHTML('afterbegin', messageHtml); 
+        targetDiv.insertAdjacentHTML('afterbegin', messageHtml);
     } else {
         targetDiv.innerHTML = messageHtml;
     }
@@ -692,18 +533,16 @@ function resetUIForNewBill() {
     extractedTextSection.style.display = 'none';
     getDataBtn.disabled = true;
     processNewBtn.style.display = 'none';
-    filesToProcess = [];
-    pdfFile = null;
-    if (pdfBlobUrl) { URL.revokeObjectURL(pdfBlobUrl); pdfBlobUrl = null; }
 }
 
 function fullReset() {
     resetUIForNewBill();
     pdfUpload.value = "";
-    showStatus('info', 'Ready for the next batch of bills. Upload PDF(s) to begin.');
+    if (pdfBlobUrl) { URL.revokeObjectURL(pdfBlobUrl); pdfBlobUrl = null; }
+    pdfFile = null;
+    showStatus('info', 'Ready for the next bill. Upload a PDF to begin.');
 }
 
 authorizeBtn.onclick = handleAuthClick;
 signoutBtn.onclick = handleSignoutClick;
 processNewBtn.addEventListener('click', fullReset);
-
