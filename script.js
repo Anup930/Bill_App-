@@ -220,9 +220,42 @@ pdfUpload.addEventListener('change', async (event) => {
     }
 });
 
+// async function extractTextFromPdf(pdfData) {
+//     const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
+//     let combinedText = '';
+//     for (let i = 1; i <= pdf.numPages; i++) {
+//         const page = await pdf.getPage(i);
+//         const textContent = await page.getTextContent();
+//         if (textContent.items.length > 0) {
+//             combinedText += textContent.items.map(s => s.str).join(' ') + '\n';
+//         }
+//     }
+//     if (!combinedText.trim()) {
+//         // Fallback to OCR
+//         // Note: For large batches, this OCR logic can be very slow.
+//         showStatus('info', 'No direct text found. Starting OCR...');
+//         const worker = await Tesseract.createWorker('eng');
+//         for (let i = 1; i <= pdf.numPages; i++) {
+//             showStatus('info', `Processing Page ${i}/${pdf.numPages} with OCR...`);
+//             const page = await pdf.getPage(i);
+//             const viewport = page.getViewport({ scale: 2.0 });
+//             const canvas = document.createElement('canvas');
+//             canvas.height = viewport.height;
+//             canvas.width = viewport.width;
+//             await page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
+//             const { data: { text } } = await worker.recognize(canvas);
+//             combinedText += text + '\n';
+//         }
+//         await worker.terminate();
+//     }
+//     return combinedText.trim();
+// }
+
 async function extractTextFromPdf(pdfData) {
     const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
     let combinedText = '';
+
+    // --- 1. Attempt standard PDF text extraction ---
     for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const textContent = await page.getTextContent();
@@ -230,26 +263,54 @@ async function extractTextFromPdf(pdfData) {
             combinedText += textContent.items.map(s => s.str).join(' ') + '\n';
         }
     }
-    if (!combinedText.trim()) {
-        // Fallback to OCR
-        // Note: For large batches, this OCR logic can be very slow.
-        showStatus('info', 'No direct text found. Starting OCR...');
-        const worker = await Tesseract.createWorker('eng');
+
+    if (combinedText.trim()) {
+        console.log("PDF.js successful. Extracted text length:", combinedText.trim().length);
+        return combinedText.trim();
+    }
+    
+    // --- 2. Fallback to OCR (Tesseract.js) ---
+    console.log("No direct text found. Starting OCR fallback...");
+    showStatus('info', 'No direct text found. Starting OCR...'); // Keep this in the main status area
+
+    let worker = null;
+    try {
+        worker = await Tesseract.createWorker('eng');
         for (let i = 1; i <= pdf.numPages; i++) {
-            showStatus('info', `Processing Page ${i}/${pdf.numPages} with OCR...`);
+            console.log(`[OCR] Processing Page ${i}/${pdf.numPages}...`);
+            // Note: Removed the showStatus update here to prevent interference with Tesseract logging
+            
             const page = await pdf.getPage(i);
             const viewport = page.getViewport({ scale: 2.0 });
             const canvas = document.createElement('canvas');
             canvas.height = viewport.height;
             canvas.width = viewport.width;
+            
             await page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
+            
             const { data: { text } } = await worker.recognize(canvas);
             combinedText += text + '\n';
         }
-        await worker.terminate();
+    } catch (ocrError) {
+        console.error("Tesseract OCR failed:", ocrError);
+        showStatus('error', `OCR failed: ${ocrError.message}`, true);
+    } finally {
+        if (worker) {
+            await worker.terminate();
+        }
     }
-    return combinedText.trim();
+    
+    // Final check for OCR output
+    const finalResult = combinedText.trim();
+    if (finalResult) {
+        console.log("OCR successful. Final extracted text length:", finalResult.length);
+    } else {
+        console.log("OCR failed to produce any text.");
+    }
+    
+    return finalResult;
 }
+
 
 getDataBtn.addEventListener('click', async () => {
     if (filesToProcess.length === 0) {
@@ -645,3 +706,4 @@ function fullReset() {
 authorizeBtn.onclick = handleAuthClick;
 signoutBtn.onclick = handleSignoutClick;
 processNewBtn.addEventListener('click', fullReset);
+
