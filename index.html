@@ -1,5 +1,4 @@
-<!-- v 5.1 -->
-
+<!-- V3.5 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -26,7 +25,7 @@
             border-radius: 16px;
             box-shadow: 0 10px 35px rgba(0,0,0,0.08);
             animation: fadeIn 0.5s ease;
-            position: relative;
+            position: relative; /* Added for positioning the new buttons */
         }
         
         /* --- START: NEW CSS FOR APPROVAL BUTTONS --- */
@@ -45,7 +44,7 @@
             border-radius: 6px;
             cursor: pointer;
             font-size: 14px;
-            width: auto;
+            width: auto; /* Override full width */
             margin-top: 0;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
@@ -149,32 +148,37 @@
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px);} to { opacity: 1; transform: translateY(0);} }
     </style>
 
+    <!-- External Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.4.120/build/pdf.min.js"></script>
     <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
+    <!-- Google API Libraries -->
     <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </head>
 <body>
 
     <div class="container">
+        <!-- --- START: NEW APPROVAL BUTTONS --- -->
         <div class="approval-buttons-container">
             <a href="https://anup930.github.io/Sendforapprovalv2.0/index.html" target="_blank">
               <button>Approval</button>
             </a>
         </div>
+        <!-- --- END: NEW APPROVAL BUTTONS --- -->
+
         <h1>📄 PDF Bill Scanner</h1>
         
         <div class="file-uploader">
-            <label for="pdf-upload"><b>1. Upload your PDF bill(s)</b></label>
-            <input type="file" id="pdf-upload" accept=".pdf" multiple style="margin-top: 8px;">
+            <label for="pdf-upload"><b>1. Upload your PDF bill</b></label>
+            <input type="file" id="pdf-upload" accept=".pdf" style="margin-top: 8px;">
         </div>
         
         <div id="status-area"></div>
         
         <div id="extracted-text-section" style="display:none; margin-top: 1rem;">
-            <h3>📜 Extracted Text (All Bills)</h3>
+            <h3>📜 Extracted Text</h3>
             <textarea id="extracted-text-output" rows="10" readonly></textarea>
         </div>
         
@@ -202,14 +206,15 @@
                 <select id="hod-approval">
                     <option value="Arvind Harlalka">Arvind Harlalka</option>
                     <option value="Alok Harlalka">Alok Harlalka</option>
-                    <option value="Sumeet Harlalka">Sumeet Harlalka</option>
+                    <option value="Sumeet Harlalka">Sumeet Harlalka</option>
                 </select>
             </div>
             <div class="field-group">
                 <label for="final-approval">Final Approval</label>
                 <select id="final-approval">
                     <option value="Arvind Harlalka">Arvind Harlalka</option>
-</select>
+<!--                     <option value="Final2">Final2</option> -->
+                </select>
             </div>
         </div>
         
@@ -219,7 +224,7 @@
                 <button id="authorize_button" style="visibility: hidden;">Authorize Google Sheets</button>
                 <button id="signout_button" style="visibility: hidden;">Sign Out</button>
             </div>
-            <button id="get-data-btn" disabled>Get Data from Bill(s)</button> 
+            <button id="get-data-btn" disabled>Get Data from Bill</button> 
             <button id="process-new-btn" style="display:none;background:linear-gradient(90deg,#f59e0b,#d97706);">Process New Bill</button>
         </div>
 
@@ -232,9 +237,9 @@
         <div id="download-section" style="margin-top: 20px;"></div>
     </div>
 
+    <!-- The 'defer' attribute ensures the script runs after the HTML body is parsed -->
     <script src="script.js" defer></script>
 
 </body>
 
 </html>
-
